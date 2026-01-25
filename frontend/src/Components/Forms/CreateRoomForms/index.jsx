@@ -8,16 +8,16 @@ const CreateRoomForm = () => {
                     placeholder="Enter your name"
                 />
             </div>
-            <div className="form-group border" >
+            <div className="form-group " >
                 <div className="input-group d-flex align-items-center justify-content-center gap ">
                     <input
                         type="text"
-                        className="form-control my-2 border-0"
+                        className="form-control m-1 border-0"
                         disabled
                         placeholder="Generate room code"
                     />
                     <div className="input-group-append">
-                        <button className="btn btn-primary btn-sm me-1" type="button">
+                        <button className="btn btn-primary btn-sm  me-1 " type="button">
                             generate
                         </button>
 
