@@ -1,11 +1,12 @@
-import './App.css'
+import Forms from "./Components/Forms";
 
-const App= () => {
+const App = () => {
   return (
     <div className="App">
-      <h1> Hello world</h1>
+      <Forms />
     </div>
-    )
-}
+  );
+};
 
-export default App
+export default App;
+
