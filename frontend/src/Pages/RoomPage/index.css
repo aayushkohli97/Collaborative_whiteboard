@@ -1,52 +1,94 @@
+/* ===== BASE ===== */
+
 .room-container {
     height: 100vh;
     padding: 20px;
     background: #f8f9fa;
 }
 
-/* Header */
 .room-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 25px;
-    background: white;
-    border-radius: 10px;
     margin-bottom: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .room-id {
-    font-weight: 600;
     color: #0d6efd;
+    font-weight: 600;
 }
 
-/* Body Layout */
 .room-body {
     display: flex;
-    height: calc(100% - 90px);
+    height: calc(100% - 80px);
     gap: 15px;
 }
 
-/* Whiteboard */
-.whiteboard {
+/* ===== WHITEBOARD ===== */
+
+.whiteboard-container {
     flex: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+}
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #ffffff;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.tool-btn {
+    background: #f1f3f5;
+    border: 2px solid transparent; /* 🔥 default */
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* 🔥 ONLY BORDER CHANGES */
+.tool-btn.active {
+    border: 2px solid #0d6efd;
+}
+
+.tool-btn.eraser.active {
+    border: 2px solid #dc3545;
+}
+
+.color-picker {
+    margin-left: auto;
+    width: 40px;
+    height: 35px;
+    border: none;
+    cursor: pointer;
+}
+
+/* Writing Area */
+.whiteboard {
+    flex: 1;
     background: white;
     border-radius: 10px;
     border: 2px dashed #ced4da;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 .placeholder-text {
-    text-align: center;
     color: #6c757d;
-    font-size: 18px;
+    text-align: center;
 }
 
-/* Sidebar */
+/* ===== SIDEBAR ===== */
+
 .sidebar {
     flex: 1;
     background: white;
@@ -58,19 +100,28 @@
     justify-content: space-between;
 }
 
-.user-list {
-    list-style: none;
-    padding: 0;
-    margin: 10px 0;
+/* ===== DARK MODE ===== */
+
+body.dark {
+    background: #121212;
+    color: #eaeaea;
 }
 
-.user-list li {
-    padding: 6px 0;
-    font-weight: 500;
+body.dark .room-container {
+    background: #121212;
 }
 
-/* Buttons */
-.controls button {
-    width: 100%;
-    margin-bottom: 10px;
+body.dark .toolbar,
+body.dark .whiteboard,
+body.dark .sidebar {
+    background: #1e1e1e;
+}
+
+body.dark .tool-btn {
+    background: #2c2c2c;
+    color: #eaeaea;
+}
+
+body.dark .tool-btn.active {
+    border-color: #66b2ff;
 }
