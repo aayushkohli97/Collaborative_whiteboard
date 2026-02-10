@@ -1,92 +1,135 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import "./index.css";
+import WhiteBoard from "../../Components/Whiteboard";
 
 const RoomPage = () => {
-    const [activeTool, setActiveTool] = useState("pencil");
+    const canvasRef = useRef(null);
+    const ctxRef = useRef(null);
     
-    const toggleTheme = () => {
-        document.body.classList.toggle("dark");
+    const undoStack = useRef([]);
+    const redoStack = useRef([]);
+
+    const [tool, setTool] = useState("pencil");
+    const [color, setColor] = useState("#000000");
+
+    const saveState = () => {
+    if (!canvasRef.current) return;
+    undoStack.current.push(canvasRef.current.toDataURL());
+    redoStack.current = [];
+};
+
+const undo = () => {
+    if (undoStack.current.length === 0) return;
+
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+
+    redoStack.current.push(canvas.toDataURL());
+
+    const img = new Image();
+    img.src = undoStack.current.pop();
+    img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
     };
+};
+
+const redo = () => {
+    if (redoStack.current.length === 0) return;
+
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+
+    undoStack.current.push(canvas.toDataURL());
+
+    const img = new Image();
+    img.src = redoStack.current.pop();
+    img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+    };
+};
+
 
     return (
         <div className="room-container">
+            <div className="row">
 
-            {/* Header */}
-            <div className="room-header">
-                <div>
-                    <h2>Whiteboard Sharing App</h2>
-                    <span className="room-id">Room ID: ABC123</span>
+                {/* Header */}
+                <div className="col-12 mb-2">
+                    <h5>Room ID: ABC123</h5>
                 </div>
 
-                <button
-                    className="btn btn-outline-secondary btn-sm"
-                    onClick={toggleTheme}
-                >
-                    Toggle Theme
-                </button>
-            </div>
+                
+                <div className="col-md-10 mx-auto mb-3">
+                    <div className="tool-bar">
 
-            {/* Main Content */}
-            <div className="room-body">
-
-                {/* Whiteboard Area */}
-                <div className="whiteboard-container">
-
-                    {/* Toolbar */}
-                    <div className="toolbar">
-                        <button
-                            className={`tool-btn ${activeTool === "pencil" ? "active" : ""}`}
-                            onClick={() => setActiveTool("pencil")}
+    
+                        <div
+                            className={`tool-card ${tool === "pencil" ? "active" : ""}`}
+                            onClick={() => setTool("pencil")}
                         >
-                            ✏️ Pencil
-                        </button>
+                            ✏️
+                            <span>Pencil</span>
+                        </div>
 
-                        <button
-                            className={`tool-btn ${activeTool === "pen" ? "active" : ""}`}
-                            onClick={() => setActiveTool("pen")}
+                        <div
+                            className={`tool-card ${tool === "pen" ? "active" : ""}`}
+                            onClick={() => setTool("pen")}
                         >
-                            🖊️ Pen
-                        </button>
+                            🖊️
+                            <span>Pen</span>
+                        </div>
 
-                        <button
-                            className={`tool-btn ${activeTool === "brush" ? "active" : ""}`}
-                            onClick={() => setActiveTool("brush")}
+                        <div
+                            className={`tool-card ${tool === "brush" ? "active" : ""}`}
+                            onClick={() => setTool("brush")}
                         >
-                            🖌️ Brush
-                        </button>
+                            🖌️
+                            <span>Brush</span>
+                        </div>
 
-                        <button
-                            className={`tool-btn eraser ${activeTool === "eraser" ? "active" : ""}`}
-                            onClick={() => setActiveTool("eraser")}
+                        <div
+                            className={`tool-card ${tool === "eraser" ? "active" : ""}`}
+                            onClick={() => setTool("eraser")}
                         >
-                            🧽 Eraser
-                        </button>
+                            🧽
+                            <span>Eraser</span>
+                        </div>
+                        <div></div>
 
-                        <input type="color" className="color-picker" />
-                    </div>
+                        <div className="color-picker-box">
+                            <input
+                                type="color"
+                                value={color}
+                                onChange={(e) => setColor(e.target.value)}
+                            />
+                        </div>
 
-                    {/* Writing Area */}
-                    <div className="whiteboard">
-                        <p className="placeholder-text">
-                            
-                            (Draw / Write here)
-                        </p>
+                        <div className="undo-button ">
+                            <button className="action-button" onClick={undo}>
+                                ↩️
+                            </button>
+                        </div>
+                        <div className="redo-button">
+                            <button className="action-button" onClick={redo}>
+                                ➡️
+                            </button>
+                        </div>
+
                     </div>
                 </div>
 
-                {/* Sidebar */}
-                <div className="sidebar">
-                    <h5>Participants</h5>
-                    <ul className="user-list">
-                        <li>🟢 You</li>
-                        <li>🟢 User 2</li>
-                        <li>🔴 User 3</li>
-                    </ul>
+                
+                <div className="col-md-10 mx-auto canvas-box">
+                    <WhiteBoard
+                    canvasRef={canvasRef}
+                    ctxRef={ctxRef}
+                    tool={tool}
+                    color={color}
+                    saveState={saveState}
+                    />
 
-                    <div className="controls">
-                        <button className="btn btn-primary">Clear Board</button>
-                        <button className="btn btn-outline-danger">Leave Room</button>
-                    </div>
                 </div>
 
             </div>
