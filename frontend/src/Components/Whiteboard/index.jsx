@@ -7,20 +7,43 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, saveState }) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        const ctx = canvas.getContext("2d");
+        ctx.lineCap = "round";
+        ctxRef.current = ctx;
+
+        resizeCanvas(); // initial setup
+
+        window.addEventListener("resize", resizeCanvas);
+
+        return () => {
+            window.removeEventListener("resize", resizeCanvas);
+        };
+    }, []); 
+
+    const resizeCanvas = () => {
+        const canvas = canvasRef.current;
+        const ctx = ctxRef.current;
+        if (!canvas || !ctx) return;
+
+        // save current drawing
+        const imageData = canvas.toDataURL();
+
+        // resize canvas
         canvas.width = canvas.offsetWidth;
         canvas.height = canvas.offsetHeight;
 
-        const ctx = canvas.getContext("2d");
-        ctx.lineCap = "round";
-
-        ctxRef.current = ctx;
-    }, []);
-
+        // restore drawing
+        const img = new Image();
+        img.src = imageData;
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0);
+        };
+    };
     const handleMouseDown = (e) => {
         const ctx = ctxRef.current;
         if (!ctx) return;
 
-        // ⭐ save state BEFORE draw (undo fix)
+        //save state BEFORE draw (undo fix)
         saveState();
 
         isDrawing.current = true;
@@ -42,7 +65,7 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, saveState }) => {
     const handleMouseMove = (e) => {
         if (!isDrawing.current) return;
         const ctx = ctxRef.current;
-
+       
         ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
         ctx.stroke();
     };
@@ -67,5 +90,6 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, saveState }) => {
         />
     );
 };
+
 
 export default WhiteBoard;

@@ -1,68 +1,146 @@
+/* =========================
+   BASE LAYOUT
+========================= */
+
 .room-container {
-    padding: 16px;
-    background: #f5f7fa;
-    min-height: 100vh;
+  padding: 16px;
+  background: #f4f6f9;
+  min-height: 100vh;
 }
 
-/* ===== TOOL BAR ===== */
 .tool-bar {
-    display: flex;
-    gap: 16px;
-    padding: 10px;
-    background: #ffffff;
-    border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #fff;
+  padding: 12px;
+  border-radius: 10px;
 }
 
-/* Tool cards */
+/* =========================
+   TOOL CARDS
+========================= */
+
 .tool-card {
-    width: 110px;
-    height: 80px;
-    background: #f1f3f5;
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border: 2px solid transparent;
-    font-weight: 500;
+  width: 90px;
+  height: 70px;
+  background: #f1f3f5;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.2s ease;
+  font-size: 14px;
 }
 
-.tool-card span {
-    margin-top: 6px;
+.tool-card:hover {
+  background: #e9ecef;
 }
 
-/* Active tool (BLUE BORDER like screenshot) */
 .tool-card.active {
-    border-color: #1e6bff;
-    background: #ffffff;
+  border-color: #1e6bff;
+  background: #ffffff;
 }
 
-/* ===== CANVAS PLACEHOLDER ===== */
-.canvas-box {
-    margin-top: 12px;
-    height: 520px;
-    border: 2px dashed #cfd4da;
-    background: #ffffff;
-}
+/* =========================
+   COLOR PICKER
+========================= */
+
 .color-picker-box {
-    width: 42px;
-    height: 42px;
-    border-radius: 8px;
-    border: 2px solid #d0d7de;
-    overflow: hidden;
-    cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid #d0d7de;
 }
 
-.color-picker-box input[type="color"] {
-    width: 100%;
-    height: 100%;
-    border: none;
-    padding: 0;
-    cursor: pointer;
+.color-picker-box input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
-.action-btn {
+
+/* =========================
+   UNDO / REDO BUTTON
+========================= */
+
+.action-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.action-button:hover {
+  background: #e9ecef;
+}
+
+/* =========================
+   CANVAS
+========================= */
+
+.canvas-box {
+  margin-top: 16px;
+  height: 70vh;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* =========================
+   RESPONSIVE BREAKPOINTS
+========================= */
+
+/* Tablet */
+@media (max-width: 992px) {
+  .tool-card {
     width: 80px;
-    height: 36px;
+    height: 65px;
     font-size: 13px;
+  }
+
+  .canvas-box {
+    height: 65vh;
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .tool-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 10px;
+  }
+
+  .tool-card {
+    flex: 0 0 auto;
+    width: 75px;
+    height: 60px;
+    font-size: 12px;
+  }
+
+  .canvas-box {
+    height: 60vh;
+  }
+
+  .action-button {
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+
+  .color-picker-box {
+    width: 36px;
+    height: 36px;
+  }
 }
