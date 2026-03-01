@@ -144,3 +144,58 @@
     height: 36px;
   }
 }
+.size-picker-box .tool-card{
+height:40px;
+display:flex;
+align-items:center;
+justify-content:center;
+padding:0 10px;
+}
+.size-slider::-webkit-slider-thumb{
+appearance:none;
+height:14px;
+width:14px;
+border-radius:50%;
+background:#0d6efd;
+cursor:pointer;
+}
+.size-slider::-webkit-slider-runnable-track{
+height:5px;
+background:#ccc;
+border-radius:5px;
+}
+.size-slider{
+-webkit-appearance:none;
+appearance:none;
+}
+.size-picker-box{
+position:relative;
+}
+
+.size-button{
+height:40px;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.size-slider{
+position:absolute;
+top:50px;
+left:0;
+background:white;
+padding:10px;
+border-radius:8px;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+}
+
+.size-slider input{
+width:120px;
+cursor:pointer;
+}
+
+canvas{
+width:100%;
+height:100%;
+display:block;
+}
