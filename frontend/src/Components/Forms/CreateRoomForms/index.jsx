@@ -12,7 +12,7 @@ const CreateRoomForm = ({uuid,socket,setUser}) => {
             roomId,
             userId : uuid(),
             host: true,
-            presenter: false
+            presenter: true
         }
         setUser(roomData)
         navigate(`/${roomId}`);

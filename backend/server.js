@@ -11,8 +11,13 @@ app.get("/",(req,res)=>{
 io.on("connection",(socket)=>{
     socket.on("userJoined",(data) =>{
         const {name,userId,roomId,host,presenter} = data;
+        //console.log("USER JOINED",data.roomId);
         socket.join(roomId);  
         socket.emit("userIsJoined",{success:true});
+    });
+    socket.on("whiteboardData",(data)=>{
+        //console.log("server received data",data.roomId);
+        socket.broadcast.to(data.roomId).emit("whiteboardData",data);
     });
 });
 

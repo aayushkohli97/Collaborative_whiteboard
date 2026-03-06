@@ -211,3 +211,8 @@ margin-left:auto;
 .clear-button:hover{
 background:#d9363e;
 }
+.viewer-mode{
+  opacity:0.4;
+  pointer-events:none;
+  cursor:not-allowed;
+}

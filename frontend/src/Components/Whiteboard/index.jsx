@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 
-const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState }) => {
+const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresenter,socket }) => {
 
     const isDrawing = useRef(false);
+    const { roomId } = useParams();
 
     useEffect(() => {
 
@@ -22,6 +24,25 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState }) => {
         };
 
     }, []);
+
+    useEffect(()=>{
+
+        socket.on("whiteboardData",(data)=>{
+            console.log("viewer recieved data");
+
+            const img = new Image();
+            img.src = data.img;
+
+            img.onload = ()=>{
+                const canvas = canvasRef.current;
+                const ctx = ctxRef.current;
+
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                ctx.drawImage(img,0,0);
+            };
+        });
+
+    },[]);
 
     const resizeCanvas = () => {
 
@@ -47,6 +68,7 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState }) => {
     };
 
     const handleMouseDown = (e) => {
+        if(!isPresenter) return;
 
         const ctx = ctxRef.current;
         if (!ctx) return;
@@ -57,7 +79,7 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState }) => {
 
         if (tool === "eraser") {
             ctx.globalCompositeOperation = "destination-out";
-            ctx.lineWidth = size;
+            ctx.lineWidth = 1.5*size;
         } else {
             ctx.globalCompositeOperation = "source-over";
             ctx.strokeStyle = color;
@@ -69,18 +91,30 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState }) => {
     };
 
     const handleMouseMove = (e) => {
-
-        if (!isDrawing.current) return;
+        if(!isPresenter) return;
+        if(!isDrawing.current) return;
 
         const ctx = ctxRef.current;
 
-        ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+        const x = e.nativeEvent.offsetX;
+        const y = e.nativeEvent.offsetY;
+
+        ctx.lineTo(x,y);
         ctx.stroke();
+
+        const canvas = canvasRef.current;
+
+        socket.emit("whiteboardData",{
+            img: canvas.toDataURL(),
+            roomId: roomId
+        });
     };
 
     const handleMouseUp = () => {
+
         isDrawing.current = false;
         ctxRef.current.closePath();
+
     };
 
     return (

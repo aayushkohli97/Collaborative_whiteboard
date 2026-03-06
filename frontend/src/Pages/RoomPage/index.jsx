@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import "./index.css";
 import WhiteBoard from "../../Components/Whiteboard";
 import { useParams } from "react-router-dom";
-const RoomPage = () => {
 
+const RoomPage = ({user,socket}) => {
+    const isPresenter = user?.presenter; 
     const canvasRef = useRef(null);
     const ctxRef = useRef(null);
 
@@ -17,9 +18,11 @@ const RoomPage = () => {
 
     const sizeRef = useRef(null);
     const {roomId} = useParams();
+
     const formatRoomId = (id) =>{
         return id.slice(0,3) + "..."+ id.slice(-3);
     }
+
     useEffect(() => {
 
         const handleClickOutside = (event) => {
@@ -56,6 +59,10 @@ const RoomPage = () => {
         img.onload = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
+            socket.emit("whiteboardData",{
+                img : canvas.toDataURL(),
+                roomId : roomId
+            });
         };
     };
 
@@ -73,15 +80,23 @@ const RoomPage = () => {
         img.onload = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
+            socket.emit("whiteboardData",{
+                img : canvas.toDataURL(),
+                roomId : roomId
+            });
         };
     };
+
     const handleClearCanvas = ()=>{
         saveState();
         const canvas= canvasRef.current;
         const ctx = ctxRef.current;
         ctx.fillStyle = "white";
         ctx.fillRect(0,0,canvas.width,canvas.height);
-        
+        socket.emit("whiteboardData",{
+            img : canvas.toDataURL(),
+            roomId : roomId
+        })
     }
 
     return (
@@ -92,10 +107,10 @@ const RoomPage = () => {
                 <div className="col-12 mb-2">
                     <h5>Room ID: {formatRoomId(roomId)} </h5>
                 </div>
-
+                
                 <div className="col-md-10 mx-auto mb-3">
 
-                    <div className="tool-bar">
+                    <div className={`tool-bar ${!isPresenter? "viewer-mode" : ""}`}>
 
                         <div className={`tool-card ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")}>
                             ✏️
@@ -169,6 +184,8 @@ const RoomPage = () => {
                         color={color}
                         size={size}
                         saveState={saveState}
+                        isPresenter={isPresenter}
+                        socket={socket}
                     />
 
                 </div>
