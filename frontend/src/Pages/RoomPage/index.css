@@ -199,3 +199,15 @@ width:100%;
 height:100%;
 display:block;
 }
+.clear-button{
+width : 100px;
+font-size: small;
+background:#ff4d4f;
+color:white;
+border:none;
+margin-left:auto;
+}
+
+.clear-button:hover{
+background:#d9363e;
+}

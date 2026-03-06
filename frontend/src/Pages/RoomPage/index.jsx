@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import "./index.css";
 import WhiteBoard from "../../Components/Whiteboard";
-
+import { useParams } from "react-router-dom";
 const RoomPage = () => {
 
     const canvasRef = useRef(null);
@@ -16,7 +16,10 @@ const RoomPage = () => {
     const [showSizeSlider, setShowSizeSlider] = useState(false);
 
     const sizeRef = useRef(null);
-
+    const {roomId} = useParams();
+    const formatRoomId = (id) =>{
+        return id.slice(0,3) + "..."+ id.slice(-3);
+    }
     useEffect(() => {
 
         const handleClickOutside = (event) => {
@@ -72,14 +75,22 @@ const RoomPage = () => {
             ctx.drawImage(img, 0, 0);
         };
     };
+    const handleClearCanvas = ()=>{
+        saveState();
+        const canvas= canvasRef.current;
+        const ctx = ctxRef.current;
+        ctx.fillStyle = "white";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        
+    }
 
     return (
         <div className="room-container">
 
             <div className="row">
-
+                
                 <div className="col-12 mb-2">
-                    <h5>Room ID: ABC123</h5>
+                    <h5>Room ID: {formatRoomId(roomId)} </h5>
                 </div>
 
                 <div className="col-md-10 mx-auto mb-3">
@@ -137,6 +148,13 @@ const RoomPage = () => {
 
                         <button className="action-button" onClick={undo}>↩️</button>
                         <button className="action-button" onClick={redo}>➡️</button>
+
+                        <button
+                            className="action-button clear-button"
+                            onClick={handleClearCanvas}
+                        >
+                            clear canvas
+                        </button>
 
                     </div>
 

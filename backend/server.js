@@ -9,7 +9,11 @@ app.get("/",(req,res)=>{
     res.send("This is mern realtime board sharing app ");
 });
 io.on("connection",(socket)=>{
-    console.log("user connected");
+    socket.on("userJoined",(data) =>{
+        const {name,userId,roomId,host,presenter} = data;
+        socket.join(roomId);  
+        socket.emit("userIsJoined",{success:true});
+    });
 });
 
 const port = process.env.PORT || 5000;
