@@ -20,7 +20,10 @@ const socket = io(server, connectionOptions);
 
 const App = () => {
 
-  const [user,setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
 
   useEffect(() => {
     socket.on("userIsJoined",(data) =>{

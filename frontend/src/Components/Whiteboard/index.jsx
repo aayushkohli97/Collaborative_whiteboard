@@ -5,6 +5,8 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
 
     const isDrawing = useRef(false);
     const { roomId } = useParams();
+    const lastImageRef = useRef(null);
+    const originalImageRef = useRef(null);
 
     useEffect(() => {
 
@@ -19,8 +21,15 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
 
         window.addEventListener("resize", resizeCanvas);
 
+        const observer = new ResizeObserver(() => {
+            resizeCanvas();
+        });
+
+        observer.observe(canvas.parentElement);
+
         return () => {
             window.removeEventListener("resize", resizeCanvas);
+            observer.disconnect();
         };
 
     }, []);
@@ -28,7 +37,6 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
     useEffect(()=>{
 
         socket.on("whiteboardData",(data)=>{
-            console.log("viewer recieved data");
 
             const img = new Image();
             img.src = data.img;
@@ -39,8 +47,15 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
 
                 ctx.clearRect(0,0,canvas.width,canvas.height);
                 ctx.drawImage(img,0,0);
+
+                originalImageRef.current = data.img;
             };
+
         });
+
+        return ()=>{
+            socket.off("whiteboardData");
+        }
 
     },[]);
 
@@ -51,19 +66,19 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
 
         if (!canvas || !ctx) return;
 
-        const imageData = canvas.toDataURL();
-
         const rect = canvas.getBoundingClientRect();
 
         canvas.width = rect.width;
         canvas.height = rect.height;
 
-        const img = new Image();
-        img.src = imageData;
+        if(originalImageRef.current){
+            const img = new Image();
+            img.src = originalImageRef.current;
 
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        };
+            img.onload = () => {
+                ctx.drawImage(img,0,0,canvas.width,canvas.height);
+            };
+        }
 
     };
 
@@ -102,10 +117,15 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
         ctx.lineTo(x,y);
         ctx.stroke();
 
+        lastImageRef.current = canvasRef.current.toDataURL();
+
         const canvas = canvasRef.current;
 
+        const imgData = canvas.toDataURL();
+        originalImageRef.current = imgData;
+
         socket.emit("whiteboardData",{
-            img: canvas.toDataURL(),
+            img: imgData,
             roomId: roomId
         });
     };
@@ -114,7 +134,7 @@ const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresente
 
         isDrawing.current = false;
         ctxRef.current.closePath();
-
+        originalImageRef.current = canvasRef.current.toDataURL();
     };
 
     return (

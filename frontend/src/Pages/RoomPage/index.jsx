@@ -3,25 +3,31 @@ import "./index.css";
 import WhiteBoard from "../../Components/Whiteboard";
 import { useParams } from "react-router-dom";
 
-const RoomPage = ({user,socket}) => {
-    const isPresenter = user?.presenter; 
+const RoomPage = ({ user, socket }) => {
+
+    const isPresenter = user?.presenter;
+
     const canvasRef = useRef(null);
     const ctxRef = useRef(null);
 
     const undoStack = useRef([]);
     const redoStack = useRef([]);
 
+    const sizeRef = useRef(null);
+
+    const { roomId } = useParams();
+
     const [tool, setTool] = useState("pencil");
     const [color, setColor] = useState("#000000");
     const [size, setSize] = useState(5);
     const [showSizeSlider, setShowSizeSlider] = useState(false);
 
-    const sizeRef = useRef(null);
-    const {roomId} = useParams();
+    const [showUsers, setShowUsers] = useState(true);
+    const [users, setUsers] = useState([]);
 
-    const formatRoomId = (id) =>{
-        return id.slice(0,3) + "..."+ id.slice(-3);
-    }
+    const formatRoomId = (id) => {
+        return id.slice(0, 3) + "..." + id.slice(-3);
+    };
 
     useEffect(() => {
 
@@ -39,13 +45,43 @@ const RoomPage = ({user,socket}) => {
 
     }, []);
 
+    useEffect(() => {
+
+        socket.on("roomUsers", (data) => {
+            setUsers(data.users);
+        });
+
+        return () => {
+            socket.off("roomUsers");
+        };
+
+    }, [socket]);
+
+    useEffect(() => {
+
+        const storedUser = JSON.parse(localStorage.getItem("user"));
+
+        if (!storedUser) return;
+
+        if (socket.connected) {
+            socket.emit("userJoined", storedUser);
+        } else {
+            socket.on("connect", () => {
+                socket.emit("userJoined", storedUser);
+            });
+        }
+
+    }, [socket]);
+
     const saveState = () => {
         if (!canvasRef.current) return;
+
         undoStack.current.push(canvasRef.current.toDataURL());
         redoStack.current = [];
     };
 
     const undo = () => {
+
         if (undoStack.current.length === 0) return;
 
         const canvas = canvasRef.current;
@@ -57,16 +93,21 @@ const RoomPage = ({user,socket}) => {
         img.src = undoStack.current.pop();
 
         img.onload = () => {
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
-            socket.emit("whiteboardData",{
-                img : canvas.toDataURL(),
-                roomId : roomId
+
+            socket.emit("whiteboardData", {
+                img: canvas.toDataURL(),
+                roomId: roomId
             });
+
         };
+
     };
 
     const redo = () => {
+
         if (redoStack.current.length === 0) return;
 
         const canvas = canvasRef.current;
@@ -78,69 +119,76 @@ const RoomPage = ({user,socket}) => {
         img.src = redoStack.current.pop();
 
         img.onload = () => {
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
-            socket.emit("whiteboardData",{
-                img : canvas.toDataURL(),
-                roomId : roomId
+
+            socket.emit("whiteboardData", {
+                img: canvas.toDataURL(),
+                roomId: roomId
             });
+
         };
+
     };
 
-    const handleClearCanvas = ()=>{
+    const handleClearCanvas = () => {
+
         saveState();
-        const canvas= canvasRef.current;
+
+        const canvas = canvasRef.current;
         const ctx = ctxRef.current;
+
         ctx.fillStyle = "white";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        socket.emit("whiteboardData",{
-            img : canvas.toDataURL(),
-            roomId : roomId
-        })
-    }
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        socket.emit("whiteboardData", {
+            img: canvas.toDataURL(),
+            roomId: roomId
+        });
+
+    };
 
     return (
+
         <div className="room-container">
 
-            <div className="row">
-                
-                <div className="col-12 mb-2">
-                    <h5>Room ID: {formatRoomId(roomId)} </h5>
-                </div>
-                
-                <div className="col-md-10 mx-auto mb-3">
+            <div className="top-bar">
+                <h5>Room ID: {formatRoomId(roomId)}</h5>
+            </div>
 
-                    <div className={`tool-bar ${!isPresenter? "viewer-mode" : ""}`}>
+            <div className="main-layout">
+
+                <div className="board-section">
+
+                    <div className={`tool-bar ${!isPresenter ? "viewer-mode" : ""}`}>
 
                         <div className={`tool-card ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")}>
-                            ✏️
-                            <span>Pencil</span>
+                            ✏️ <span>Pencil</span>
                         </div>
 
                         <div className={`tool-card ${tool === "pen" ? "active" : ""}`} onClick={() => setTool("pen")}>
-                            🖊️
-                            <span>Pen</span>
+                            🖊️ <span>Pen</span>
                         </div>
 
                         <div className={`tool-card ${tool === "brush" ? "active" : ""}`} onClick={() => setTool("brush")}>
-                            🖌️
-                            <span>Brush</span>
+                            🖌️ <span>Brush</span>
                         </div>
 
                         <div className={`tool-card ${tool === "eraser" ? "active" : ""}`} onClick={() => setTool("eraser")}>
-                            🧽
-                            <span>Eraser</span>
+                            🧽 <span>Eraser</span>
                         </div>
 
                         <div className="size-picker-box" ref={sizeRef}>
 
                             <div className="tool-card size-button" onClick={() => setShowSizeSlider(!showSizeSlider)}>
-                                📏
-                                <span>Size</span>
+                                📏 <span>Size</span>
                             </div>
 
                             {showSizeSlider && (
+
                                 <div className="size-slider">
+
                                     <input
                                         type="range"
                                         min="1"
@@ -148,52 +196,114 @@ const RoomPage = ({user,socket}) => {
                                         value={size}
                                         onChange={(e) => setSize(Number(e.target.value))}
                                     />
+
                                 </div>
+
                             )}
 
                         </div>
 
                         <div className="color-picker-box">
+
                             <input
                                 type="color"
                                 value={color}
                                 onChange={(e) => setColor(e.target.value)}
                             />
+
                         </div>
 
                         <button className="action-button" onClick={undo}>↩️</button>
                         <button className="action-button" onClick={redo}>➡️</button>
 
-                        <button
-                            className="action-button clear-button"
-                            onClick={handleClearCanvas}
-                        >
-                            clear canvas
+                        <button className="action-button clear-button" onClick={handleClearCanvas}>
+                            clear
                         </button>
+
+                    </div>
+
+                    <div className="whiteboard-box">
+
+                        <WhiteBoard
+                            canvasRef={canvasRef}
+                            ctxRef={ctxRef}
+                            tool={tool}
+                            color={color}
+                            size={size}
+                            saveState={saveState}
+                            isPresenter={isPresenter}
+                            socket={socket}
+                        />
 
                     </div>
 
                 </div>
 
-                <div className="col-md-10 mx-auto canvas-box">
+                <div className={`users-panel ${!showUsers ? "closed" : ""}`}>
 
-                    <WhiteBoard
-                        canvasRef={canvasRef}
-                        ctxRef={ctxRef}
-                        tool={tool}
-                        color={color}
-                        size={size}
-                        saveState={saveState}
-                        isPresenter={isPresenter}
-                        socket={socket}
-                    />
+                    <div className="users-header">
+                        <button
+                            className="toggle-users"
+                            onClick={() => setShowUsers(!showUsers)}
+                        >
+                            {showUsers ? "❯": "❮"}
+                        </button>
+                        {showUsers ? `Total Users:${users.length}` : `${users.length}`}
+                    </div>
+
+                    {showUsers && (
+
+                        <div className="users-list">
+
+                            {users.map((user, i) => {
+
+                                const initials = user.name
+                                    ?.split(" ")
+                                    .map(n => n[0])
+                                    .join("")
+                                    .toUpperCase();
+
+                                return (
+
+                                    <div key={i} className="user-item">
+
+                                        <div className="avatar">
+                                            {initials}
+                                            <span className="active-dot"></span>
+                                        </div>
+
+                                        <div className="user-info">
+
+                                            <span className="user-name">
+                                                {user.name}
+                                            </span>
+
+                                            {user.presenter && (
+                                                <span className="presenter-badge">
+                                                    ( Presenter )
+                                                </span>
+                                            )}
+
+                                        </div>
+
+                                    </div>
+
+                                );
+
+                            })}
+
+                        </div>
+
+                    )}
 
                 </div>
 
             </div>
 
         </div>
+
     );
+
 };
 
 export default RoomPage;
