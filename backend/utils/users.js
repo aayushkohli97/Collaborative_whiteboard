@@ -1,44 +1,58 @@
+/**
+ * User Management — In-memory user tracking
+ * 
+ * Each user: { name, userId, roomId, host, presenter, socketId }
+ */
+
 const users = [];
 
-// Add a user to the list
-const addUser = ({ name, userId, roomId, host, presenter }) => {
+const addUser = ({ name, userId, roomId, host, presenter, socketId }) => {
+  // Update existing user if re-joining (e.g. page refresh)
+  const existingIndex = users.findIndex((u) => u.userId === userId);
+  if (existingIndex !== -1) {
+    users[existingIndex] = { name, userId, roomId, host, presenter, socketId };
+    return users[existingIndex];
+  }
 
-    const existingUser = users.find(user => user.userId === userId);
-
-    if (existingUser) {
-        return existingUser;
-    }
-
-    const user = { name, userId, roomId, host, presenter };
-
-    users.push(user);
-
-    return user;
+  const user = { name, userId, roomId, host, presenter, socketId };
+  users.push(user);
+  return user;
 };
-// Remove a user from the list
-const removeUser = (id) => {
-  const index = users.findIndex((user) => user.userId === id);
 
+const removeUser = (socketId) => {
+  const index = users.findIndex((u) => u.socketId === socketId);
   if (index !== -1) {
     return users.splice(index, 1)[0];
   }
-
   return null;
 };
 
-// Get a single user
-const getUser = (id) => {
-  return users.find((user) => user.userId === id);
+const getUser = (userId) => {
+  return users.find((u) => u.userId === userId);
 };
 
-// Get all users in a room
+const getUserBySocketId = (socketId) => {
+  return users.find((u) => u.socketId === socketId);
+};
+
 const getUsersInRoom = (roomId) => {
-  return users.filter((user) => user.roomId === roomId);
+  return users.filter((u) => u.roomId === roomId);
+};
+
+const removeAllUsersInRoom = (roomId) => {
+  let i = users.length;
+  while (i--) {
+    if (users[i].roomId === roomId) {
+      users.splice(i, 1);
+    }
+  }
 };
 
 module.exports = {
   addUser,
   removeUser,
   getUser,
+  getUserBySocketId,
   getUsersInRoom,
+  removeAllUsersInRoom,
 };

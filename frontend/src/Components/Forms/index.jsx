@@ -2,28 +2,40 @@ import CreateRoomForm from "./CreateRoomForms";
 import JoinRoomForm from "./JoinRoomForm";
 import "./index.css";
 
-const Forms = ({uuid,socket,setUser}) => {
+const Forms = ({ uuid, socket, setUser }) => {
   return (
-    <div className="row h-100 pt-5">
-
-      {/* CREATE ROOM */}
-      <div className="col-md-4 mt-5 mx-auto">
-        <div className="form-box p-3 border border-primary rounded-2 d-flex align-items-center flex-column">
-          <h1 className="text-primary fw-bold mb-3 ">
-            Create Room
+    <div className="home-container fade-in">
+      <div className="home-content">
+        <header className="home-header">
+          <h1 className="logo-title">
+            <span className="logo-icon">✨</span>
+            CollabBoard
           </h1>
-          <CreateRoomForm uuid = {uuid} socket = {socket} setUser = {setUser} />
+          <p className="subtitle">Real-time collaborative whiteboard for modern teams.</p>
+        </header>
+
+        <div className="forms-wrapper">
+          <div className="form-card glass">
+            <div className="card-header">
+              <h2>Create a Room</h2>
+              <p>Start a new session and invite others</p>
+            </div>
+            <CreateRoomForm uuid={uuid} socket={socket} setUser={setUser} />
+          </div>
+
+          <div className="divider">
+            <span>OR</span>
+          </div>
+
+          <div className="form-card glass">
+            <div className="card-header">
+              <h2>Join a Room</h2>
+              <p>Enter an existing room code</p>
+            </div>
+            <JoinRoomForm uuid={uuid} socket={socket} setUser={setUser} />
+          </div>
         </div>
       </div>
-
-      {/* JOIN ROOM */}
-      <div className="col-md-4 mt-5 mx-auto">
-        <div className="form-box p-3 border border-primary rounded-2 d-flex align-items-center flex-column">
-          <h1 className="text-primary fw-bold mb-3">Join Room</h1>
-          <JoinRoomForm uuid = {uuid} socket = {socket} setUser = {setUser}/>
-        </div>
-      </div>
-
     </div>
   );
 };

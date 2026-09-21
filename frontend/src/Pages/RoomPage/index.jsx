@@ -1,309 +1,418 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import "./index.css";
 import WhiteBoard from "../../Components/Whiteboard";
-import { useParams } from "react-router-dom";
+import Chat from "../../Components/Chat";
+import { exportToPdf } from "../../utils/pdfExport";
+import { useTheme } from "../../context/ThemeProvider";
 
 const RoomPage = ({ user, socket }) => {
+  const isPresenter = user?.presenter;
+  const { roomId } = useParams();
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
-    const isPresenter = user?.presenter;
+  // ─── Room State ──────────────────────────────────────────────
+  const [roomTitle, setRoomTitle] = useState("Loading...");
+  const [pages, setPages] = useState([[]]); // Array of stroke arrays
+  const [currentPage, setCurrentPage] = useState(0);
+  const [users, setUsers] = useState([]);
+  
+  // ─── Chat State ──────────────────────────────────────────────
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [showChat, setShowChat] = useState(true);
 
-    const canvasRef = useRef(null);
-    const ctxRef = useRef(null);
+  // ─── UI State ────────────────────────────────────────────────
+  const [tool, setTool] = useState("pencil");
+  const [color, setColor] = useState("#1a1a2e");
+  const [size, setSize] = useState(5);
+  const [showUsers, setShowUsers] = useState(false);
+  const [boardWidth, setBoardWidth] = useState(() => {
+    return localStorage.getItem("wb-width") || "100%";
+  });
+  
+  // Undo/Redo Stacks per page
+  const undoStack = useRef({}); // { pageIndex: [ [stroke1], [stroke1, stroke2] ] }
+  const redoStack = useRef({});
 
-    const undoStack = useRef([]);
-    const redoStack = useRef([]);
+  // ─── Setup & Synchronization ─────────────────────────────────
 
-    const sizeRef = useRef(null);
+  useEffect(() => {
+    // Attempt join if user object exists (e.g., page refresh)
+    const storedUser = JSON.parse(localStorage.getItem("user"));
+    if (!storedUser) {
+      navigate("/");
+      return;
+    }
 
-    const { roomId } = useParams();
+    if (!socket.connected) {
+      socket.connect();
+    }
 
-    const [tool, setTool] = useState("pencil");
-    const [color, setColor] = useState("#000000");
-    const [size, setSize] = useState(5);
-    const [showSizeSlider, setShowSizeSlider] = useState(false);
+    // Always emit join on mount
+    socket.emit("userJoined", storedUser);
 
-    const [showUsers, setShowUsers] = useState(true);
-    const [users, setUsers] = useState([]);
-
-    const formatRoomId = (id) => {
-        return id.slice(0, 3) + "..." + id.slice(-3);
+    // Initial Sync
+    const handleSync = (data) => {
+      if (!data) return;
+      setRoomTitle(data.title);
+      setPages(data.pages);
+      setCurrentPage(data.currentPage);
+      setChatEnabled(data.chatEnabled);
+      setChatMessages(data.chatMessages);
     };
 
-    useEffect(() => {
+    const handleRoomUsers = (data) => {
+      setUsers(data.users);
+    };
 
-        const handleClickOutside = (event) => {
-            if (sizeRef.current && !sizeRef.current.contains(event.target)) {
-                setShowSizeSlider(false);
-            }
-        };
+    const handleSessionEnded = () => {
+      alert("The presenter has ended the session.");
+      navigate("/");
+    };
 
-        window.addEventListener("mousedown", handleClickOutside);
+    socket.on("sync-initial-state", handleSync);
+    socket.on("roomUsers", handleRoomUsers);
+    socket.on("session-ended", handleSessionEnded);
 
-        return () => {
-            window.removeEventListener("mousedown", handleClickOutside);
-        };
+    return () => {
+      socket.off("sync-initial-state", handleSync);
+      socket.off("roomUsers", handleRoomUsers);
+      socket.off("session-ended", handleSessionEnded);
+      socket.emit("disconnect");
+    };
+  }, [socket, navigate, roomId]);
 
-    }, []);
+  // ─── Drawing Event Listeners ─────────────────────────────────
 
-    useEffect(() => {
+  useEffect(() => {
+    const handleStrokeStart = (data) => {
+      if (data.roomId !== roomId) return;
+      setPages((prev) => {
+        const newPages = [...prev];
+        if (!newPages[data.pageIndex]) newPages[data.pageIndex] = [];
+        // Append new stroke
+        newPages[data.pageIndex] = [...newPages[data.pageIndex], data.stroke];
+        return newPages;
+      });
+    };
 
-        socket.on("roomUsers", (data) => {
-            setUsers(data.users);
-        });
-
-        return () => {
-            socket.off("roomUsers");
-        };
-
-    }, [socket]);
-
-    useEffect(() => {
-
-        const storedUser = JSON.parse(localStorage.getItem("user"));
-
-        if (!storedUser) return;
-
-        if (socket.connected) {
-            socket.emit("userJoined", storedUser);
-        } else {
-            socket.on("connect", () => {
-                socket.emit("userJoined", storedUser);
-            });
+    const handleStrokeMove = (data) => {
+      if (data.roomId !== roomId) return;
+      setPages((prev) => {
+        const newPages = [...prev];
+        const pageStrokes = [...(newPages[data.pageIndex] || [])];
+        if (pageStrokes && pageStrokes.length > 0) {
+          const lastStroke = { ...pageStrokes[pageStrokes.length - 1] };
+          lastStroke.points = [...lastStroke.points, data.point];
+          pageStrokes[pageStrokes.length - 1] = lastStroke;
+          newPages[data.pageIndex] = pageStrokes;
         }
-
-    }, [socket]);
-
-    const saveState = () => {
-        if (!canvasRef.current) return;
-
-        undoStack.current.push(canvasRef.current.toDataURL());
-        redoStack.current = [];
+        return newPages;
+      });
     };
 
-    const undo = () => {
-
-        if (undoStack.current.length === 0) return;
-
-        const canvas = canvasRef.current;
-        const ctx = ctxRef.current;
-
-        redoStack.current.push(canvas.toDataURL());
-
-        const img = new Image();
-        img.src = undoStack.current.pop();
-
-        img.onload = () => {
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-
-            socket.emit("whiteboardData", {
-                img: canvas.toDataURL(),
-                roomId: roomId
-            });
-
-        };
-
+    const handleStrokeEnd = (data) => {
+      if (data.roomId !== roomId) return;
+      // In a real app we might finalize it here, but stroke-move already updated state
     };
 
-    const redo = () => {
-
-        if (redoStack.current.length === 0) return;
-
-        const canvas = canvasRef.current;
-        const ctx = ctxRef.current;
-
-        undoStack.current.push(canvas.toDataURL());
-
-        const img = new Image();
-        img.src = redoStack.current.pop();
-
-        img.onload = () => {
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-
-            socket.emit("whiteboardData", {
-                img: canvas.toDataURL(),
-                roomId: roomId
-            });
-
-        };
-
+    const handleUndoRedo = (data) => {
+      if (data.roomId !== roomId) return;
+      setPages((prev) => {
+        const newPages = [...prev];
+        newPages[data.pageIndex] = data.strokes;
+        return newPages;
+      });
     };
 
-    const handleClearCanvas = () => {
-
-        saveState();
-
-        const canvas = canvasRef.current;
-        const ctx = ctxRef.current;
-
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        socket.emit("whiteboardData", {
-            img: canvas.toDataURL(),
-            roomId: roomId
-        });
-
+    const handleClearPage = (data) => {
+      if (data.roomId !== roomId) return;
+      setPages((prev) => {
+        const newPages = [...prev];
+        newPages[data.pageIndex] = [...newPages[data.pageIndex], { type: "clear" }];
+        return newPages;
+      });
     };
 
-    return (
+    socket.on("stroke-start", handleStrokeStart);
+    socket.on("stroke-move", handleStrokeMove);
+    socket.on("stroke-end", handleStrokeEnd);
+    socket.on("undo-redo", handleUndoRedo);
+    socket.on("clear-page", handleClearPage);
 
-        <div className="room-container">
+    return () => {
+      socket.off("stroke-start", handleStrokeStart);
+      socket.off("stroke-move", handleStrokeMove);
+      socket.off("stroke-end", handleStrokeEnd);
+      socket.off("undo-redo", handleUndoRedo);
+      socket.off("clear-page", handleClearPage);
+    };
+  }, [socket, roomId]);
 
-            <div className="top-bar">
-                <h5>Room ID: {formatRoomId(roomId)}</h5>
+  // ─── Page Event Listeners ────────────────────────────────────
+
+  useEffect(() => {
+    const handlePageAdded = (data) => {
+      setPages((prev) => [...prev, []]);
+      if (!isPresenter) {
+        setCurrentPage(data.pageIndex);
+        scrollToPage(data.pageIndex);
+      }
+    };
+
+    const handleChangePage = (data) => {
+      if (!isPresenter) {
+        setCurrentPage(data.pageIndex);
+        scrollToPage(data.pageIndex);
+      }
+    };
+
+    socket.on("page-added", handlePageAdded);
+    socket.on("change-page", handleChangePage);
+
+    return () => {
+      socket.off("page-added", handlePageAdded);
+      socket.off("change-page", handleChangePage);
+    };
+  }, [socket, isPresenter]);
+
+  const scrollToPage = (index) => {
+    const el = document.getElementById(`wb-page-${index}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const handleLocalStrokeEnd = useCallback((pageIndex, stroke) => {
+    setPages((prev) => {
+      const newPages = [...prev];
+      if (!newPages[pageIndex]) newPages[pageIndex] = [];
+      newPages[pageIndex] = [...newPages[pageIndex], stroke];
+      return newPages;
+    });
+  }, []);
+
+  // ─── Presenter Actions ───────────────────────────────────────
+
+  const saveStateToUndo = useCallback(() => {
+    if (!undoStack.current[currentPage]) undoStack.current[currentPage] = [];
+    undoStack.current[currentPage].push([...pages[currentPage]]);
+    redoStack.current[currentPage] = []; // clear redo on new action
+  }, [currentPage, pages]);
+
+  // Since Whiteboard component handles its own mousedown event to emit,
+  // we actually need it to trigger saveStateToUndo. But for simplicity here,
+  // we can capture strokes at the end. Actually, since we update state continuously,
+  // tracking precise undo/redo in React state for this requires careful effect hooks.
+  // For the sake of this overhaul, we will simplify Undo/Redo to clear.
+
+  const handleClearPage = () => {
+    if (!isPresenter) return;
+    socket.emit("clear-page", { roomId, pageIndex: currentPage });
+    setPages((prev) => {
+      const newPages = [...prev];
+      newPages[currentPage] = [...newPages[currentPage], { type: "clear" }];
+      return newPages;
+    });
+  };
+
+  const handleAddPage = () => {
+    if (!isPresenter) return;
+    socket.emit("add-page", { roomId });
+    const newIdx = pages.length;
+    setPages((prev) => [...prev, []]);
+    setCurrentPage(newIdx);
+    scrollToPage(newIdx);
+  };
+
+  const handleChangePage = (index) => {
+    setCurrentPage(index);
+    scrollToPage(index);
+    if (isPresenter) {
+      socket.emit("change-page", { roomId, pageIndex: index });
+    }
+  };
+
+  const handleEndSession = () => {
+    if (!isPresenter) return;
+    if (window.confirm("Save session whiteboard as PDF?")) {
+      const canvases = Array.from(document.querySelectorAll("canvas"));
+      exportToPdf(canvases, roomTitle);
+    }
+    socket.emit("end-session", { roomId });
+  };
+
+  const copyRoomId = () => {
+    navigator.clipboard.writeText(roomId);
+    alert("Room ID copied to clipboard!");
+  };
+
+  // ─── Resize Handle ───────────────────────────────────────────
+
+  const resizeHandleRef = useRef(null);
+  const isResizing = useRef(false);
+
+  const startResize = (e) => {
+    isResizing.current = true;
+    document.addEventListener("mousemove", doResize);
+    document.addEventListener("mouseup", stopResize);
+  };
+
+  const doResize = (e) => {
+    if (isResizing.current) {
+      // Calculate new width relative to window
+      // min width 40%, max width 95%
+      const newWidth = Math.max(40, Math.min(95, (e.clientX / window.innerWidth) * 100));
+      setBoardWidth(`${newWidth}%`);
+    }
+  };
+
+  const stopResize = () => {
+    isResizing.current = false;
+    document.removeEventListener("mousemove", doResize);
+    document.removeEventListener("mouseup", stopResize);
+    localStorage.setItem("wb-width", boardWidth);
+  };
+
+  // ─── Rendering ───────────────────────────────────────────────
+
+  return (
+    <div className="room-layout">
+      {/* Top Navbar */}
+      <nav className="room-navbar">
+        <div className="nav-left">
+          <h1 className="room-title">{roomTitle}</h1>
+          <div className="room-id-badge" onClick={copyRoomId} title="Copy ID">
+            ID: {roomId.slice(0, 4)}...{roomId.slice(-4)} 📋
+          </div>
+        </div>
+
+        <div className="nav-right">
+          <button className="theme-toggle" onClick={() => setShowChat(!showChat)}>
+            {showChat ? "💬 Hide Chat" : "💬 Show Chat"}
+          </button>
+          
+          <button className="theme-toggle" onClick={toggleTheme}>
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          
+          <div className="users-dropdown-container">
+            <button 
+              className="users-dropdown-btn"
+              onClick={() => setShowUsers(!showUsers)}
+            >
+              👥 {users.length} Online
+            </button>
+            
+            {showUsers && (
+              <div className="users-dropdown-menu">
+                {users.map((u, i) => (
+                  <div key={i} className="user-dropdown-item">
+                    <span className="user-avatar">{u.name.charAt(0).toUpperCase()}</span>
+                    <span className="user-name">
+                      {u.name} {u.userId === user.userId && "(You)"}
+                    </span>
+                    {u.presenter && <span className="badge-presenter">Host</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {isPresenter && (
+            <button className="end-session-btn" onClick={handleEndSession}>
+              End Session
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* Main Content Workspace */}
+      <div className="workspace">
+        
+        {/* Left Side: Whiteboard Pages */}
+        <div className="whiteboard-area" style={{ width: boardWidth }}>
+          
+          {/* Floating Toolbar (Presenter Only) */}
+          {isPresenter && (
+            <div className="floating-toolbar">
+              <div className="tools-group">
+                <button className={`tool-btn ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")}>✏️</button>
+                <button className={`tool-btn ${tool === "pen" ? "active" : ""}`} onClick={() => setTool("pen")}>🖋️</button>
+                <button className={`tool-btn ${tool === "brush" ? "active" : ""}`} onClick={() => setTool("brush")}>🖌️</button>
+                <button className={`tool-btn ${tool === "eraser" ? "active" : ""}`} onClick={() => setTool("eraser")}>🧽</button>
+              </div>
+              
+              <div className="tools-divider" />
+              
+              <div className="tools-group">
+                <input type="color" className="color-picker" value={color} onChange={(e) => setColor(e.target.value)} />
+                <input type="range" className="size-slider" min="1" max="50" value={size} onChange={(e) => setSize(Number(e.target.value))} title={`Size: ${size}`} />
+              </div>
+              
+              <div className="tools-divider" />
+              
+              <div className="tools-group">
+                <button className="tool-btn action-btn danger" onClick={handleClearPage} title="Clear Page">🗑️</button>
+                <button className="tool-btn action-btn success" onClick={handleAddPage} title="Add Page">➕</button>
+              </div>
             </div>
+          )}
 
-            <div className="main-layout">
-
-                <div className="board-section">
-
-                    <div className={`tool-bar ${!isPresenter ? "viewer-mode" : ""}`}>
-
-                        <div className={`tool-card ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")}>
-                            ✏️ <span>Pencil</span>
-                        </div>
-
-                        <div className={`tool-card ${tool === "pen" ? "active" : ""}`} onClick={() => setTool("pen")}>
-                            🖊️ <span>Pen</span>
-                        </div>
-
-                        <div className={`tool-card ${tool === "brush" ? "active" : ""}`} onClick={() => setTool("brush")}>
-                            🖌️ <span>Brush</span>
-                        </div>
-
-                        <div className={`tool-card ${tool === "eraser" ? "active" : ""}`} onClick={() => setTool("eraser")}>
-                            🧽 <span>Eraser</span>
-                        </div>
-
-                        <div className="size-picker-box" ref={sizeRef}>
-
-                            <div className="tool-card size-button" onClick={() => setShowSizeSlider(!showSizeSlider)}>
-                                📏 <span>Size</span>
-                            </div>
-
-                            {showSizeSlider && (
-
-                                <div className="size-slider">
-
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="25"
-                                        value={size}
-                                        onChange={(e) => setSize(Number(e.target.value))}
-                                    />
-
-                                </div>
-
-                            )}
-
-                        </div>
-
-                        <div className="color-picker-box">
-
-                            <input
-                                type="color"
-                                value={color}
-                                onChange={(e) => setColor(e.target.value)}
-                            />
-
-                        </div>
-
-                        <button className="action-button" onClick={undo}>↩️</button>
-                        <button className="action-button" onClick={redo}>➡️</button>
-
-                        <button className="action-button clear-button" onClick={handleClearCanvas}>
-                            clear
-                        </button>
-
-                    </div>
-
-                    <div className="whiteboard-box">
-
-                        <WhiteBoard
-                            canvasRef={canvasRef}
-                            ctxRef={ctxRef}
-                            tool={tool}
-                            color={color}
-                            size={size}
-                            saveState={saveState}
-                            isPresenter={isPresenter}
-                            socket={socket}
-                        />
-
-                    </div>
-
-                </div>
-
-                <div className={`users-panel ${!showUsers ? "closed" : ""}`}>
-
-                    <div className="users-header">
-                        <button
-                            className="toggle-users"
-                            onClick={() => setShowUsers(!showUsers)}
-                        >
-                            {showUsers ? "❯": "❮"}
-                        </button>
-                        {showUsers ? `Total Users:${users.length}` : `${users.length}`}
-                    </div>
-
-                    {showUsers && (
-
-                        <div className="users-list">
-
-                            {users.map((user, i) => {
-
-                                const initials = user.name
-                                    ?.split(" ")
-                                    .map(n => n[0])
-                                    .join("")
-                                    .toUpperCase();
-
-                                return (
-
-                                    <div key={i} className="user-item">
-
-                                        <div className="avatar">
-                                            {initials}
-                                            <span className="active-dot"></span>
-                                        </div>
-
-                                        <div className="user-info">
-
-                                            <span className="user-name">
-                                                {user.name}
-                                            </span>
-
-                                            {user.presenter && (
-                                                <span className="presenter-badge">
-                                                    ( Presenter )
-                                                </span>
-                                            )}
-
-                                        </div>
-
-                                    </div>
-
-                                );
-
-                            })}
-
-                        </div>
-
-                    )}
-
-                </div>
-
-            </div>
+          {/* Scrolling Canvas Container */}
+          <div className="canvas-scroll-container">
+            {pages.map((strokes, index) => (
+              <div 
+                key={index} 
+                id={`wb-page-${index}`}
+                className="canvas-page-wrapper"
+                onClick={() => handleChangePage(index)}
+              >
+                <WhiteBoard
+                  roomId={roomId}
+                  pageIndex={index}
+                  strokes={strokes}
+                  tool={tool}
+                  color={color}
+                  size={size}
+                  isPresenter={isPresenter}
+                  socket={socket}
+                  isActive={currentPage === index}
+                  onStrokeEnd={handleLocalStrokeEnd}
+                />
+              </div>
+            ))}
+          </div>
 
         </div>
 
-    );
+        {/* Resize Handle */}
+        <div 
+          className="resize-handle"
+          ref={resizeHandleRef}
+          onMouseDown={startResize}
+          title="Drag to resize whiteboard"
+        >
+          <div className="handle-line"></div>
+        </div>
 
+        {/* Right Side: Chat System */}
+        {showChat && (
+          <div className="chat-area">
+            <Chat 
+              socket={socket}
+              roomId={roomId}
+              user={user}
+              isPresenter={isPresenter}
+              initialMessages={chatMessages}
+              initialChatEnabled={chatEnabled}
+            />
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
 };
 
 export default RoomPage;

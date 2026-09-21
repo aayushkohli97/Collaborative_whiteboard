@@ -1,152 +1,161 @@
 import { useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { setupCanvasDPI, normalizePoint, redrawPage } from "../../utils/canvasEngine";
 
-const WhiteBoard = ({ canvasRef, ctxRef, tool, color, size, saveState,isPresenter,socket }) => {
+const WhiteBoard = ({ 
+  pageIndex, 
+  strokes, 
+  tool, 
+  color, 
+  size, 
+  isPresenter, 
+  socket, 
+  roomId,
+  isActive,
+  onStrokeEnd
+}) => {
+  const canvasRef = useRef(null);
+  const ctxRef = useRef(null);
+  const cssSizeRef = useRef({ width: 0, height: 0 });
+  const isDrawing = useRef(false);
+  const currentStroke = useRef(null); // the stroke currently being drawn
 
-    const isDrawing = useRef(false);
-    const { roomId } = useParams();
-    const lastImageRef = useRef(null);
-    const originalImageRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    useEffect(() => {
+    // Initial setup
+    handleResize();
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
+    window.addEventListener("resize", handleResize);
+    const observer = new ResizeObserver(() => handleResize());
+    if (canvas.parentElement) {
+      observer.observe(canvas.parentElement);
+    }
 
-        const ctx = canvas.getContext("2d");
-        ctx.lineCap = "round";
-        ctxRef.current = ctx;
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
+    };
+  }, []);
 
-        resizeCanvas();
+  // Redraw when strokes change or after resize
+  useEffect(() => {
+    if (ctxRef.current && cssSizeRef.current.width > 0) {
+      redrawPage(ctxRef.current, strokes, cssSizeRef.current.width, cssSizeRef.current.height);
+    }
+  }, [strokes]);
 
-        window.addEventListener("resize", resizeCanvas);
+  const strokesRef = useRef(strokes);
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
 
-        const observer = new ResizeObserver(() => {
-            resizeCanvas();
-        });
+  const handleResize = () => {
+    if (!canvasRef.current) return;
+    const { width, height, ctx } = setupCanvasDPI(canvasRef.current);
+    cssSizeRef.current = { width, height };
+    ctxRef.current = ctx;
+    // Redraw existing strokes at new dimensions
+    redrawPage(ctx, strokesRef.current, width, height);
+  };
 
-        observer.observe(canvas.parentElement);
+  const handleMouseDown = (e) => {
+    if (!isPresenter || !isActive) return;
 
-        return () => {
-            window.removeEventListener("resize", resizeCanvas);
-            observer.disconnect();
-        };
+    const { offsetX, offsetY } = e.nativeEvent;
+    const normPt = normalizePoint(offsetX, offsetY, cssSizeRef.current.width, cssSizeRef.current.height);
 
-    }, []);
-
-    useEffect(()=>{
-
-        socket.on("whiteboardData",(data)=>{
-
-            const img = new Image();
-            img.src = data.img;
-
-            img.onload = ()=>{
-                const canvas = canvasRef.current;
-                const ctx = ctxRef.current;
-
-                ctx.clearRect(0,0,canvas.width,canvas.height);
-                ctx.drawImage(img,0,0);
-
-                originalImageRef.current = data.img;
-            };
-
-        });
-
-        return ()=>{
-            socket.off("whiteboardData");
-        }
-
-    },[]);
-
-    const resizeCanvas = () => {
-
-        const canvas = canvasRef.current;
-        const ctx = ctxRef.current;
-
-        if (!canvas || !ctx) return;
-
-        const rect = canvas.getBoundingClientRect();
-
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-
-        if(originalImageRef.current){
-            const img = new Image();
-            img.src = originalImageRef.current;
-
-            img.onload = () => {
-                ctx.drawImage(img,0,0,canvas.width,canvas.height);
-            };
-        }
-
+    isDrawing.current = true;
+    currentStroke.current = {
+      type: "stroke",
+      tool,
+      color,
+      size,
+      points: [normPt]
     };
 
-    const handleMouseDown = (e) => {
-        if(!isPresenter) return;
+    // Emit start so viewers see drawing begin
+    socket.emit("stroke-start", {
+      roomId,
+      pageIndex,
+      stroke: currentStroke.current
+    });
 
-        const ctx = ctxRef.current;
-        if (!ctx) return;
+    // Draw locally (optimistic)
+    const ctx = ctxRef.current;
+    if (ctx) {
+      ctx.beginPath();
+      // Temporarily use current tool styles for drawing the ongoing line
+      ctx.lineCap = tool === "pen" ? "butt" : "round";
+      ctx.lineJoin = tool === "pen" ? "miter" : "round";
+      ctx.lineWidth = tool === "brush" ? size * 2.5 : tool === "eraser" ? size * 2 : tool === "pen" ? size * 0.8 : size;
+      ctx.strokeStyle = tool === "eraser" ? "#ffffff" : color;
+      ctx.globalAlpha = tool === "brush" ? 0.45 : 1;
+      ctx.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
+      
+      ctx.moveTo(offsetX, offsetY);
+    }
+  };
 
-        saveState();
+  const handleMouseMove = (e) => {
+    if (!isPresenter || !isActive || !isDrawing.current) return;
 
-        isDrawing.current = true;
+    const { offsetX, offsetY } = e.nativeEvent;
+    const normPt = normalizePoint(offsetX, offsetY, cssSizeRef.current.width, cssSizeRef.current.height);
 
-        if (tool === "eraser") {
-            ctx.globalCompositeOperation = "destination-out";
-            ctx.lineWidth = 1.5*size;
-        } else {
-            ctx.globalCompositeOperation = "source-over";
-            ctx.strokeStyle = color;
-            ctx.lineWidth = size;
-        }
+    currentStroke.current.points.push(normPt);
 
-        ctx.beginPath();
-        ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-    };
+    socket.emit("stroke-move", {
+      roomId,
+      pageIndex,
+      point: normPt
+    });
 
-    const handleMouseMove = (e) => {
-        if(!isPresenter) return;
-        if(!isDrawing.current) return;
+    // Draw locally
+    const ctx = ctxRef.current;
+    if (ctx) {
+      ctx.lineTo(offsetX, offsetY);
+      ctx.stroke();
+    }
+  };
 
-        const ctx = ctxRef.current;
+  const handleMouseUp = () => {
+    if (!isPresenter || !isActive || !isDrawing.current) return;
+    
+    isDrawing.current = false;
+    
+    const ctx = ctxRef.current;
+    if (ctx) {
+      ctx.closePath();
+      // Reset composite operation
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
+    }
 
-        const x = e.nativeEvent.offsetX;
-        const y = e.nativeEvent.offsetY;
+    socket.emit("stroke-end", {
+      roomId,
+      pageIndex,
+      stroke: currentStroke.current
+    });
+    
+    if (onStrokeEnd) {
+      onStrokeEnd(pageIndex, currentStroke.current);
+    }
+  };
 
-        ctx.lineTo(x,y);
-        ctx.stroke();
-
-        lastImageRef.current = canvasRef.current.toDataURL();
-
-        const canvas = canvasRef.current;
-
-        const imgData = canvas.toDataURL();
-        originalImageRef.current = imgData;
-
-        socket.emit("whiteboardData",{
-            img: imgData,
-            roomId: roomId
-        });
-    };
-
-    const handleMouseUp = () => {
-
-        isDrawing.current = false;
-        ctxRef.current.closePath();
-        originalImageRef.current = canvasRef.current.toDataURL();
-    };
-
-    return (
-        <canvas
-            ref={canvasRef}
-            className="border border-dark border-3 h-100 w-100"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-        />
-    );
+  return (
+    <div className={`canvas-wrapper ${isActive ? "active-page" : "inactive-page"}`}>
+      <canvas
+        ref={canvasRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        className={!isPresenter || !isActive ? "viewer-mode" : ""}
+      />
+      <div className="page-indicator">Page {pageIndex + 1}</div>
+    </div>
+  );
 };
 
 export default WhiteBoard;

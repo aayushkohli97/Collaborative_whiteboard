@@ -2,73 +2,62 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const JoinRoomForm = ({ uuid, socket, setUser }) => {
+  const [roomId, setRoomId] = useState("");
+  const [name, setName] = useState("");
 
-    const [roomId, setRoomId] = useState("");
-    const [name, setName] = useState("");
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
+  const handleJoinRoom = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return alert("Please enter your name");
+    if (!roomId.trim()) return alert("Please enter a room code");
 
-    const handleJoinRoom = (e) => {
-
-        e.preventDefault();
-
-        const roomData = {
-            name,
-            roomId,
-            userId: uuid(),
-            host: false,
-            presenter: false
-        };
-
-        localStorage.setItem("user", JSON.stringify(roomData));
-
-        setUser(roomData);
-
-        socket.emit("userJoined", roomData);
-
-        navigate(`/${roomId}`);
-
+    const roomData = {
+      name: name.trim(),
+      roomId: roomId.trim(),
+      userId: uuid(),
+      host: false,
+      presenter: false,
     };
 
-    return (
+    localStorage.setItem("user", JSON.stringify(roomData));
+    setUser(roomData);
 
-        <form className="form col-md-12 mt-5">
+    socket.emit("userJoined", roomData);
+    navigate(`/${roomData.roomId}`);
+  };
 
-            <div className="form-group">
-                <input
-                    type="text"
-                    className="form-control my-2"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                />
-            </div>
+  return (
+    <form className="form-content" onSubmit={handleJoinRoom}>
+      <div className="form-group">
+        <label className="form-label">Your Name</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="e.g. Jane Doe"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
 
-            <div className="form-group border">
-                <div className="d-flex align-items-center justify-content-center gap">
+      <div className="form-group" style={{ marginBottom: '2.5rem' }}>
+        <label className="form-label">Room Code</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Enter room code to join"
+          value={roomId}
+          onChange={(e) => setRoomId(e.target.value)}
+          required
+        />
+      </div>
 
-                    <input
-                        type="text"
-                        className="form-control my-2 border-0"
-                        placeholder="Enter room code"
-                        value={roomId}
-                        onChange={(e) => setRoomId(e.target.value)}
-                    />
-
-                </div>
-            </div>
-
-            <button
-                type="submit"
-                onClick={handleJoinRoom}
-                className="mt-4 btn btn-primary btn-block form-control"
-            >
-                Submit
-            </button>
-
-        </form>
-
-    );
+      <button type="submit" className="btn-primary">
+        Join Room
+      </button>
+    </form>
+  );
 };
 
 export default JoinRoomForm;

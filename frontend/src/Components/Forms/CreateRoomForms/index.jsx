@@ -2,94 +2,102 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const CreateRoomForm = ({ uuid, socket, setUser }) => {
+  const [roomId, setRoomId] = useState("");
+  const [name, setName] = useState("");
+  const [roomTitle, setRoomTitle] = useState("");
+  const [copySuccess, setCopySuccess] = useState(false);
 
-    const [roomId, setRoomId] = useState("");
-    const [name, setName] = useState("");
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
-
-const handleCreateRoom = (e) => {
+  const handleCreateRoom = (e) => {
     e.preventDefault();
+    if (!name.trim()) return alert("Please enter your name");
+    if (!roomId) return alert("Please generate a room code first");
 
     const roomData = {
-        name,
-        roomId,
-        userId: uuid(),
-        host: true,
-        presenter: true
+      name: name.trim(),
+      roomId,
+      roomTitle: roomTitle.trim() || "Untitled Room",
+      userId: uuid(),
+      host: true,
+      presenter: true,
     };
 
     localStorage.setItem("user", JSON.stringify(roomData));
-
     setUser(roomData);
 
     socket.emit("userJoined", roomData);
-
     navigate(`/${roomId}`);
-};
+  };
 
-    return (
+  const handleCopy = () => {
+    if (!roomId) return;
+    navigator.clipboard.writeText(roomId).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    });
+  };
 
-        <form className="form col-md-12 mt-5">
+  return (
+    <form className="form-content" onSubmit={handleCreateRoom}>
+      <div className="form-group">
+        <label className="form-label">Your Name</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="e.g. John Doe"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
 
-            <div className="form-group">
+      <div className="form-group">
+        <label className="form-label">Room Title (Optional)</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="e.g. Team Brainstorming"
+          value={roomTitle}
+          onChange={(e) => setRoomTitle(e.target.value)}
+        />
+      </div>
 
-                <input
-                    type="text"
-                    className="form-control my-2"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                />
+      <div className="form-group">
+        <label className="form-label">Room Code</label>
+        <div className="input-row">
+          <input
+            type="text"
+            className="form-input"
+            value={roomId}
+            disabled
+            placeholder="Generate code →"
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setRoomId(uuid())}
+            title="Generate New Code"
+          >
+            🔄
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleCopy}
+            disabled={!roomId}
+            title="Copy Code"
+          >
+            {copySuccess ? "✅" : "📋"}
+          </button>
+        </div>
+      </div>
 
-            </div>
-
-            <div className="form-group">
-
-                <div className="input-group d-flex align-items-center justify-content-center gap">
-
-                    <input
-                        type="text"
-                        value={roomId}
-                        className="form-control m-1 border-0"
-                        disabled
-                        placeholder="Generate room code"
-                    />
-
-                    <div className="input-group-append">
-
-                        <button
-                            className="btn btn-primary btn-sm me-1"
-                            onClick={() => setRoomId(uuid())}
-                            type="button"
-                        >
-                            generate
-                        </button>
-
-                        <button
-                            className="btn btn-outline-danger btn-sm me-1"
-                            type="button"
-                        >
-                            copy
-                        </button>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-            <button
-                type="submit"
-                onClick={handleCreateRoom}
-                className="mt-4 btn btn-primary btn-block form-control"
-            >
-                Generate
-            </button>
-
-        </form>
-
-    );
+      <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+        Create & Join Room
+      </button>
+    </form>
+  );
 };
 
 export default CreateRoomForm;

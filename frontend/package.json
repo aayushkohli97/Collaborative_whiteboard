@@ -10,11 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "bootstrap": "^5.3.8",
+    "jspdf": "^4.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
-    "roughjs": "^4.6.6",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
