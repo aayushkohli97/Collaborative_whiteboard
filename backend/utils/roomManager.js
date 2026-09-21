@@ -53,6 +53,23 @@ const clearPage = (roomId, pageIndex) => {
   return true;
 };
 
+const deletePage = (roomId, pageIndex) => {
+  const room = rooms[roomId];
+  if (!room || !room.pages) return null;
+
+  if (room.pages.length <= 1) {
+    // If only 1 page exists, clearing it acts as reset
+    room.pages[0] = [];
+    room.currentPage = 0;
+  } else {
+    room.pages.splice(pageIndex, 1);
+    if (room.currentPage >= room.pages.length) {
+      room.currentPage = room.pages.length - 1;
+    }
+  }
+  return { pages: room.pages, currentPage: room.currentPage };
+};
+
 const getPageCount = (roomId) => {
   const room = rooms[roomId];
   return room ? room.pages.length : 0;
@@ -147,6 +164,7 @@ module.exports = {
   roomExists,
   addPage,
   clearPage,
+  deletePage,
   getPageCount,
   addStroke,
   addClearAction,

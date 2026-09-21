@@ -18,6 +18,7 @@ const {
   roomExists,
   addPage,
   clearPage,
+  deletePage,
   addStroke,
   addChatMessage,
   toggleChat,
@@ -157,6 +158,19 @@ io.on("connection", (socket) => {
     const { roomId, pageIndex } = data;
     clearPage(roomId, pageIndex);
     socket.broadcast.to(roomId).emit("clear-page", { pageIndex });
+  });
+
+  socket.on("delete-page", (data) => {
+    const { roomId, pageIndex } = data;
+    const result = deletePage(roomId, pageIndex);
+    if (result) {
+      io.to(roomId).emit("page-deleted", {
+        pageIndex,
+        pages: result.pages,
+        currentPage: result.currentPage,
+      });
+      console.log(`[Room] ${roomId}: Page ${pageIndex} deleted`);
+    }
   });
 
   socket.on("change-page", (data) => {

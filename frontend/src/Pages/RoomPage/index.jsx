@@ -105,7 +105,11 @@ const RoomPage = ({ user, socket }) => {
         const pageStrokes = [...(newPages[data.pageIndex] || [])];
         if (pageStrokes && pageStrokes.length > 0) {
           const lastStroke = { ...pageStrokes[pageStrokes.length - 1] };
-          lastStroke.points = [...lastStroke.points, data.point];
+          if (["rectangle", "circle", "line"].includes(lastStroke.tool)) {
+            lastStroke.points = [lastStroke.points[0], data.point];
+          } else {
+            lastStroke.points = [...lastStroke.points, data.point];
+          }
           pageStrokes[pageStrokes.length - 1] = lastStroke;
           newPages[data.pageIndex] = pageStrokes;
         }
@@ -155,11 +159,23 @@ const RoomPage = ({ user, socket }) => {
 
   useEffect(() => {
     const handlePageAdded = (data) => {
-      setPages((prev) => [...prev, []]);
-      if (!isPresenter) {
-        setCurrentPage(data.pageIndex);
-        scrollToPage(data.pageIndex);
-      }
+      setPages((prev) => {
+        if (prev.length <= data.pageIndex) {
+          const newPages = [...prev];
+          newPages[data.pageIndex] = [];
+          return newPages;
+        }
+        return prev;
+      });
+      setCurrentPage(data.pageIndex);
+      setTimeout(() => scrollToPage(data.pageIndex), 100);
+    };
+
+    const handlePageDeleted = (data) => {
+      setPages(data.pages);
+      const validPage = Math.min(data.currentPage, data.pages.length - 1);
+      setCurrentPage(validPage);
+      setTimeout(() => scrollToPage(validPage), 100);
     };
 
     const handleChangePage = (data) => {
@@ -170,10 +186,12 @@ const RoomPage = ({ user, socket }) => {
     };
 
     socket.on("page-added", handlePageAdded);
+    socket.on("page-deleted", handlePageDeleted);
     socket.on("change-page", handleChangePage);
 
     return () => {
       socket.off("page-added", handlePageAdded);
+      socket.off("page-deleted", handlePageDeleted);
       socket.off("change-page", handleChangePage);
     };
   }, [socket, isPresenter]);
@@ -200,12 +218,6 @@ const RoomPage = ({ user, socket }) => {
     redoStack.current[currentPage] = []; // clear redo on new action
   }, [currentPage, pages]);
 
-  // Since Whiteboard component handles its own mousedown event to emit,
-  // we actually need it to trigger saveStateToUndo. But for simplicity here,
-  // we can capture strokes at the end. Actually, since we update state continuously,
-  // tracking precise undo/redo in React state for this requires careful effect hooks.
-  // For the sake of this overhaul, we will simplify Undo/Redo to clear.
-
   const handleClearPage = () => {
     if (!isPresenter) return;
     socket.emit("clear-page", { roomId, pageIndex: currentPage });
@@ -219,10 +231,17 @@ const RoomPage = ({ user, socket }) => {
   const handleAddPage = () => {
     if (!isPresenter) return;
     socket.emit("add-page", { roomId });
-    const newIdx = pages.length;
-    setPages((prev) => [...prev, []]);
-    setCurrentPage(newIdx);
-    scrollToPage(newIdx);
+  };
+
+  const handleDeletePage = (index) => {
+    if (!isPresenter) return;
+    if (pages.length <= 1) {
+      handleClearPage();
+      return;
+    }
+    if (window.confirm(`Delete Page ${index + 1}?`)) {
+      socket.emit("delete-page", { roomId, pageIndex: index });
+    }
   };
 
   const handleChangePage = (index) => {
@@ -287,6 +306,39 @@ const RoomPage = ({ user, socket }) => {
           </div>
         </div>
 
+        {/* Center Navbar Toolbar (Presenter Only) */}
+        {isPresenter && (
+          <div className="nav-toolbar">
+            <div className="tools-group">
+              <button className={`tool-btn ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")} title="Pencil">✏️</button>
+              <button className={`tool-btn ${tool === "pen" ? "active" : ""}`} onClick={() => setTool("pen")} title="Pen">🖋️</button>
+              <button className={`tool-btn ${tool === "brush" ? "active" : ""}`} onClick={() => setTool("brush")} title="Brush">🖌️</button>
+              <button className={`tool-btn ${tool === "eraser" ? "active" : ""}`} onClick={() => setTool("eraser")} title="Eraser">🧽</button>
+            </div>
+
+            <div className="tools-divider" />
+
+            <div className="tools-group">
+              <button className={`tool-btn ${tool === "rectangle" ? "active" : ""}`} onClick={() => setTool("rectangle")} title="Rectangle">🟩</button>
+              <button className={`tool-btn ${tool === "circle" ? "active" : ""}`} onClick={() => setTool("circle")} title="Circle">⭕</button>
+              <button className={`tool-btn ${tool === "line" ? "active" : ""}`} onClick={() => setTool("line")} title="Line">➖</button>
+            </div>
+
+            <div className="tools-divider" />
+
+            <div className="tools-group">
+              <input type="color" className="color-picker" value={color} onChange={(e) => setColor(e.target.value)} title="Choose Color" />
+              <input type="range" className="size-slider" min="1" max="50" value={size} onChange={(e) => setSize(Number(e.target.value))} title={`Size: ${size}`} />
+            </div>
+
+            <div className="tools-divider" />
+
+            <div className="tools-group">
+              <button className="tool-btn-clear" onClick={handleClearPage} title="Clear Page">Clear</button>
+            </div>
+          </div>
+        )}
+
         <div className="nav-right">
           <button className="theme-toggle" onClick={() => setShowChat(!showChat)}>
             {showChat ? "💬 Hide Chat" : "💬 Show Chat"}
@@ -331,34 +383,10 @@ const RoomPage = ({ user, socket }) => {
       <div className="workspace">
         
         {/* Left Side: Whiteboard Pages */}
-        <div className="whiteboard-area" style={{ width: boardWidth }}>
-          
-          {/* Floating Toolbar (Presenter Only) */}
-          {isPresenter && (
-            <div className="floating-toolbar">
-              <div className="tools-group">
-                <button className={`tool-btn ${tool === "pencil" ? "active" : ""}`} onClick={() => setTool("pencil")}>✏️</button>
-                <button className={`tool-btn ${tool === "pen" ? "active" : ""}`} onClick={() => setTool("pen")}>🖋️</button>
-                <button className={`tool-btn ${tool === "brush" ? "active" : ""}`} onClick={() => setTool("brush")}>🖌️</button>
-                <button className={`tool-btn ${tool === "eraser" ? "active" : ""}`} onClick={() => setTool("eraser")}>🧽</button>
-              </div>
-              
-              <div className="tools-divider" />
-              
-              <div className="tools-group">
-                <input type="color" className="color-picker" value={color} onChange={(e) => setColor(e.target.value)} />
-                <input type="range" className="size-slider" min="1" max="50" value={size} onChange={(e) => setSize(Number(e.target.value))} title={`Size: ${size}`} />
-              </div>
-              
-              <div className="tools-divider" />
-              
-              <div className="tools-group">
-                <button className="tool-btn action-btn danger" onClick={handleClearPage} title="Clear Page">🗑️</button>
-                <button className="tool-btn action-btn success" onClick={handleAddPage} title="Add Page">➕</button>
-              </div>
-            </div>
-          )}
-
+        <div 
+          className="whiteboard-area" 
+          style={showChat ? { width: boardWidth } : { width: "100%", flex: 1 }}
+        >
           {/* Scrolling Canvas Container */}
           <div className="canvas-scroll-container">
             {pages.map((strokes, index) => (
@@ -380,21 +408,45 @@ const RoomPage = ({ user, socket }) => {
                   isActive={currentPage === index}
                   onStrokeEnd={handleLocalStrokeEnd}
                 />
+                {isPresenter && (
+                  <div className="page-header-controls">
+                    <button 
+                      className="delete-page-btn" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePage(index);
+                      }}
+                      title={`Delete Page ${index + 1}`}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
+
+            {isPresenter && (
+              <div className="add-page-container">
+                <button className="add-page-bottom-btn" onClick={handleAddPage}>
+                  ➕ Add New Page
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
 
-        {/* Resize Handle */}
-        <div 
-          className="resize-handle"
-          ref={resizeHandleRef}
-          onMouseDown={startResize}
-          title="Drag to resize whiteboard"
-        >
-          <div className="handle-line"></div>
-        </div>
+        {/* Resize Handle - only visible when chat is open */}
+        {showChat && (
+          <div 
+            className="resize-handle"
+            ref={resizeHandleRef}
+            onMouseDown={startResize}
+            title="Drag to resize whiteboard"
+          >
+            <div className="handle-line"></div>
+          </div>
+        )}
 
         {/* Right Side: Chat System */}
         {showChat && (

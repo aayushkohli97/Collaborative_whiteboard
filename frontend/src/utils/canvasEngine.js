@@ -67,6 +67,17 @@ const getToolConfig = (tool, color, size) => {
         globalAlpha: 1,
         globalCompositeOperation: "destination-out",
       };
+    case "rectangle":
+    case "circle":
+    case "line":
+      return {
+        lineCap: "round",
+        lineJoin: "round",
+        lineWidth: size,
+        strokeStyle: color,
+        globalAlpha: 1,
+        globalCompositeOperation: "source-over",
+      };
     default:
       return {
         lineCap: "round",
@@ -101,33 +112,71 @@ export const drawStroke = (ctx, stroke, canvasWidth, canvasHeight) => {
   const config = getToolConfig(stroke.tool, stroke.color, stroke.size);
   applyToolConfig(ctx, config);
 
-  ctx.beginPath();
+  const isShape = ["rectangle", "circle", "line"].includes(stroke.tool);
 
-  const first = denormalizePoint(
-    stroke.points[0].x,
-    stroke.points[0].y,
-    canvasWidth,
-    canvasHeight
-  );
-  ctx.moveTo(first.x, first.y);
+  if (isShape) {
+    const first = denormalizePoint(
+      stroke.points[0].x,
+      stroke.points[0].y,
+      canvasWidth,
+      canvasHeight
+    );
+    const last = stroke.points.length > 1
+      ? denormalizePoint(
+          stroke.points[stroke.points.length - 1].x,
+          stroke.points[stroke.points.length - 1].y,
+          canvasWidth,
+          canvasHeight
+        )
+      : first;
 
-  if (stroke.points.length === 1) {
-    // Single point — draw a dot
-    ctx.lineTo(first.x + 0.1, first.y + 0.1);
-  } else {
-    for (let i = 1; i < stroke.points.length; i++) {
-      const pt = denormalizePoint(
-        stroke.points[i].x,
-        stroke.points[i].y,
-        canvasWidth,
-        canvasHeight
-      );
-      ctx.lineTo(pt.x, pt.y);
+    ctx.beginPath();
+    if (stroke.tool === "rectangle") {
+      const x = Math.min(first.x, last.x);
+      const y = Math.min(first.y, last.y);
+      const w = Math.abs(last.x - first.x);
+      const h = Math.abs(last.y - first.y);
+      ctx.strokeRect(x, y, w, h);
+    } else if (stroke.tool === "circle") {
+      const radiusX = Math.abs(last.x - first.x) / 2;
+      const radiusY = Math.abs(last.y - first.y) / 2;
+      const centerX = Math.min(first.x, last.x) + radiusX;
+      const centerY = Math.min(first.y, last.y) + radiusY;
+      ctx.ellipse(centerX, centerY, Math.max(radiusX, 0.1), Math.max(radiusY, 0.1), 0, 0, 2 * Math.PI);
+      ctx.stroke();
+    } else if (stroke.tool === "line") {
+      ctx.moveTo(first.x, first.y);
+      ctx.lineTo(last.x, last.y);
+      ctx.stroke();
     }
-  }
+    ctx.closePath();
+  } else {
+    // Freehand drawing (pencil, pen, brush, eraser)
+    ctx.beginPath();
+    const first = denormalizePoint(
+      stroke.points[0].x,
+      stroke.points[0].y,
+      canvasWidth,
+      canvasHeight
+    );
+    ctx.moveTo(first.x, first.y);
 
-  ctx.stroke();
-  ctx.closePath();
+    if (stroke.points.length === 1) {
+      ctx.lineTo(first.x + 0.1, first.y + 0.1);
+    } else {
+      for (let i = 1; i < stroke.points.length; i++) {
+        const pt = denormalizePoint(
+          stroke.points[i].x,
+          stroke.points[i].y,
+          canvasWidth,
+          canvasHeight
+        );
+        ctx.lineTo(pt.x, pt.y);
+      }
+    }
+    ctx.stroke();
+    ctx.closePath();
+  }
 
   // Reset composite operation and alpha
   ctx.globalCompositeOperation = "source-over";

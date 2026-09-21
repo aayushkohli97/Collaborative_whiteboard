@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { setupCanvasDPI, normalizePoint, redrawPage } from "../../utils/canvasEngine";
+import { setupCanvasDPI, normalizePoint, redrawPage, drawStroke } from "../../utils/canvasEngine";
 
 const WhiteBoard = ({ 
   pageIndex, 
@@ -38,12 +38,16 @@ const WhiteBoard = ({
     };
   }, []);
 
-  // Redraw when strokes change or after resize
+  // Redraw when strokes change, pageIndex changes, or after setup
   useEffect(() => {
-    if (ctxRef.current && cssSizeRef.current.width > 0) {
-      redrawPage(ctxRef.current, strokes, cssSizeRef.current.width, cssSizeRef.current.height);
+    if (canvasRef.current) {
+      if (!ctxRef.current || cssSizeRef.current.width === 0) {
+        handleResize();
+      } else {
+        redrawPage(ctxRef.current, strokes, cssSizeRef.current.width, cssSizeRef.current.height);
+      }
     }
-  }, [strokes]);
+  }, [strokes, pageIndex]);
 
   const strokesRef = useRef(strokes);
   useEffect(() => {
@@ -81,9 +85,11 @@ const WhiteBoard = ({
       stroke: currentStroke.current
     });
 
+    const isShape = ["rectangle", "circle", "line"].includes(tool);
+
     // Draw locally (optimistic)
     const ctx = ctxRef.current;
-    if (ctx) {
+    if (ctx && !isShape) {
       ctx.beginPath();
       // Temporarily use current tool styles for drawing the ongoing line
       ctx.lineCap = tool === "pen" ? "butt" : "round";
@@ -103,7 +109,13 @@ const WhiteBoard = ({
     const { offsetX, offsetY } = e.nativeEvent;
     const normPt = normalizePoint(offsetX, offsetY, cssSizeRef.current.width, cssSizeRef.current.height);
 
-    currentStroke.current.points.push(normPt);
+    const isShape = ["rectangle", "circle", "line"].includes(tool);
+
+    if (isShape) {
+      currentStroke.current.points = [currentStroke.current.points[0], normPt];
+    } else {
+      currentStroke.current.points.push(normPt);
+    }
 
     socket.emit("stroke-move", {
       roomId,
@@ -114,8 +126,13 @@ const WhiteBoard = ({
     // Draw locally
     const ctx = ctxRef.current;
     if (ctx) {
-      ctx.lineTo(offsetX, offsetY);
-      ctx.stroke();
+      if (isShape) {
+        redrawPage(ctx, strokesRef.current, cssSizeRef.current.width, cssSizeRef.current.height);
+        drawStroke(ctx, currentStroke.current, cssSizeRef.current.width, cssSizeRef.current.height);
+      } else {
+        ctx.lineTo(offsetX, offsetY);
+        ctx.stroke();
+      }
     }
   };
 
