@@ -16,13 +16,16 @@
 ========================= */
 
 .room-navbar {
-  height: 72px;
+  min-height: 72px;
+  height: auto;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1.5rem;
+  padding: 0.5rem 1.5rem;
+  gap: 1rem;
   z-index: 100;
   box-shadow: var(--shadow-sm);
 }
@@ -471,4 +474,29 @@
 .chat-area {
   flex: 1;
   min-width: 300px;
+}
+
+/* =========================
+   RESPONSIVE NAVBAR
+========================= */
+
+@media (max-width: 960px) {
+  .nav-left {
+    order: 1;
+  }
+  .nav-right {
+    order: 2;
+  }
+  .room-navbar::after {
+    content: "";
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .nav-toolbar {
+    order: 4;
+    width: max-content;
+    margin: 0.5rem auto 0;
+    justify-content: center;
+  }
 }
